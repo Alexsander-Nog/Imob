@@ -87,3 +87,13 @@ Os itens abaixo são gerados automaticamente e não devem ser versionados:
 - `vite.config.js`
 - `vite.config.d.ts`
 - arquivos `.env` e variações locais de ambiente
+
+## Handoff para a plataforma
+
+A página atual é o Diagnóstico Escala IMOB. O layout definitivo da plataforma será desenvolvido separadamente e, no futuro, o diagnóstico será movido para `/captura` — **essa mudança não deve ser feita agora**.
+
+As decisões de integração, responsabilidades do frontend e orientações para o próximo desenvolvedor estão em:
+
+```text
+docs/FRONTEND_HANDOFF.md
+```
