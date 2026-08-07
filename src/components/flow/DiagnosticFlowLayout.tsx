@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Brand } from "../Brand";
 import { DiagnosticSidebar } from "./DiagnosticSidebar";
 import { StepIndicator } from "./StepIndicator";
+import { LegalNotice } from "../legal/LegalNotice";
 
 interface DiagnosticFlowLayoutProps {
   children: ReactNode;
@@ -18,7 +19,7 @@ export function DiagnosticFlowLayout({ children, currentStep, percentage }: Diag
           <Brand variant="dark" />
           <StepIndicator currentStep={currentStep} totalSteps={9} percentage={percentage} />
           {children}
-          <p className="legal">Ao clicar em Prosseguir você concorda com os termos de uso e a política de privacidade.</p>
+          <LegalNotice />
         </div>
       </section>
     </div>

@@ -65,7 +65,7 @@ src/
 
 A última etapa do diagnóstico envia um `POST` para `<VITE_API_URL>/diagnostics`. A tela de sucesso só é exibida depois que a API confirma o recebimento. Em caso de falha, as respostas permanecem preenchidas para permitir nova tentativa.
 
-Para desenvolvimento local, copie `.env.example` para `.env.local` e informe a URL pública da API quando ela estiver disponível:
+Para desenvolvimento local, crie um arquivo `.env` ou `.env.local` (ambos ignorados pelo Git) e informe a URL pública da API:
 
 ```env
 VITE_API_URL=https://api.exemplo.com
@@ -86,4 +86,4 @@ Os itens abaixo são gerados automaticamente e não devem ser versionados:
 - `*.tsbuildinfo`
 - `vite.config.js`
 - `vite.config.d.ts`
-- arquivos `.env`, exceto modelos `.env.example`
+- arquivos `.env` e variações locais de ambiente
