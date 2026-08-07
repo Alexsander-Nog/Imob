@@ -63,7 +63,17 @@ src/
 
 ## Integração com o backend
 
-A comunicação com o backend será feita por HTTPS. A URL pública da API será fornecida ao frontend por variável de ambiente do Vite quando a integração for implementada.
+A última etapa do diagnóstico envia um `POST` para `<VITE_API_URL>/diagnostics`. A tela de sucesso só é exibida depois que a API confirma o recebimento. Em caso de falha, as respostas permanecem preenchidas para permitir nova tentativa.
+
+Para desenvolvimento local, copie `.env.example` para `.env.local` e informe a URL pública da API quando ela estiver disponível:
+
+```env
+VITE_API_URL=https://api.exemplo.com
+```
+
+No GitHub Pages, o workflow lê `VITE_API_URL` de **Settings → Secrets and variables → Actions → Variables**. Portanto, quando o backend for publicado, basta criar/atualizar a variável de repositório `VITE_API_URL` e executar um novo deploy; nenhuma alteração de código será necessária.
+
+Enquanto `VITE_API_URL` estiver vazia, o build continua funcionando, mas a etapa final informa que o envio ainda não está disponível e não mostra falso sucesso.
 
 Credenciais do Google, segredos da AWS e outras informações sensíveis nunca devem ser adicionadas a este repositório ou expostas no código executado pelo navegador.
 

@@ -5,7 +5,8 @@ import { DiagnosticSidebar } from "../components/flow/DiagnosticSidebar";
 import { PrimaryButton } from "../components/PrimaryButton";
 import { remainingSteps } from "../features/diagnostic/remainingSteps";
 import type { RemainingStepConfig } from "../features/diagnostic/remainingSteps";
-import type { DiagnosticData } from "../types/diagnostic";
+import { DiagnosticApiError, submitDiagnostic } from "../services/diagnosticApi";
+import type { DiagnosticData, DiagnosticSubmissionPayload } from "../types/diagnostic";
 import { SuccessStep } from "./SuccessStep";
 
 const initialData: DiagnosticData = {
@@ -22,19 +23,48 @@ function formatPhone(value: string): string {
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+function buildSubmissionPayload(data: DiagnosticData): DiagnosticSubmissionPayload | null {
+  if (!data.marketArea || !data.mainGoal || !data.priority) return null;
+
+  return {
+    name: data.name.trim(),
+    whatsapp: data.whatsapp,
+    email: data.email.trim().toLowerCase(),
+    marketArea: data.marketArea,
+    instagram: data.instagram.trim(),
+    location: data.location.trim(),
+    mainGoal: data.mainGoal,
+    priority: data.priority,
+    source: "escala-imob-diagnostico",
+  };
+}
+
 export function DiagnosticCarousel() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [data, setData] = useState<DiagnosticData>(initialData);
   const [error, setError] = useState("");
+  const [submissionError, setSubmissionError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const fieldRef = useRef<HTMLInputElement | HTMLSelectElement>(null);
 
-  const goBack = (): void => { setError(""); setCurrentSlide((current) => Math.max(0, current - 1)); };
-  const goNext = (): void => { setError(""); setCurrentSlide((current) => Math.min(8, current + 1)); };
+  const goBack = (): void => {
+    if (isSubmitting) return;
+    setError("");
+    setSubmissionError("");
+    setCurrentSlide((current) => Math.max(0, current - 1));
+  };
+  const goNext = (): void => {
+    setError("");
+    setSubmissionError("");
+    setCurrentSlide((current) => Math.min(8, current + 1));
+  };
 
-  const actions = (onBack: () => void) => (
+  const actions = (onBack: () => void, submitting = false) => (
     <div className="question__actions">
-      <BackButton onClick={onBack} />
-      <PrimaryButton type="submit" className="question__submit">Prosseguir <span aria-hidden="true">→</span></PrimaryButton>
+      <BackButton onClick={onBack} disabled={submitting} />
+      <PrimaryButton type="submit" className="question__submit" disabled={submitting} aria-busy={submitting}>
+        {submitting ? "Enviando..." : "Prosseguir"} {!submitting && <span aria-hidden="true">→</span>}
+      </PrimaryButton>
     </div>
   );
 
@@ -59,19 +89,57 @@ export function DiagnosticCarousel() {
     goNext();
   }
 
-  function showError(message: string): void { setError(message); fieldRef.current?.focus(); }
+  function showError(message: string): void {
+    setSubmissionError("");
+    setError(message);
+    fieldRef.current?.focus();
+  }
 
-  function submitConfigured(event: FormEvent<HTMLFormElement>, config: RemainingStepConfig): void {
+  async function sendDiagnostic(): Promise<void> {
+    const payload = buildSubmissionPayload(data);
+
+    if (!payload) {
+      showError("Revise as respostas anteriores antes de finalizar.");
+      return;
+    }
+
+    setError("");
+    setSubmissionError("");
+    setIsSubmitting(true);
+
+    try {
+      await submitDiagnostic(payload);
+      setCurrentSlide(8);
+    } catch (apiError) {
+      const message = apiError instanceof DiagnosticApiError
+        ? apiError.message
+        : "Não foi possível enviar seus dados. Tente novamente.";
+      setSubmissionError(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function submitConfigured(event: FormEvent<HTMLFormElement>, config: RemainingStepConfig): Promise<void> {
     event.preventDefault();
+    if (isSubmitting) return;
+
     const value = data[config.field].trim();
     const minimum = config.field === "instagram" ? 2 : 3;
     if (!value || (config.fieldType === "text" && value.length < minimum)) return showError(config.errorMessage);
+
+    if (config.field === "priority") {
+      await sendDiagnostic();
+      return;
+    }
+
     goNext();
   }
 
   const changeField = (field: keyof DiagnosticData) => (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>): void => {
     setData((current) => ({ ...current, [field]: event.target.value }));
     setError("");
+    setSubmissionError("");
   };
 
   let slideContent;
@@ -101,7 +169,7 @@ export function DiagnosticCarousel() {
             <label className="sr-only" htmlFor="whatsapp">WhatsApp com DDD</label>
             <div className={`phone-field${error ? " phone-field--error" : ""}`}>
               <span className="phone-field__prefix" aria-hidden="true"><small>BR</small> +55</span>
-              <input ref={fieldRef as React.RefObject<HTMLInputElement>} id="whatsapp" name="whatsapp" type="tel" inputMode="tel" autoComplete="tel-national" placeholder="(00) 00000-0000" value={data.whatsapp} aria-invalid={Boolean(error)} aria-describedby={error ? "carousel-error" : undefined} onChange={(event) => { setData((current) => ({ ...current, whatsapp: formatPhone(event.target.value) })); setError(""); }} />
+              <input ref={fieldRef as React.RefObject<HTMLInputElement>} id="whatsapp" name="whatsapp" type="tel" inputMode="tel" autoComplete="tel-national" placeholder="(00) 00000-0000" value={data.whatsapp} aria-invalid={Boolean(error)} aria-describedby={error ? "carousel-error" : undefined} onChange={(event) => { setData((current) => ({ ...current, whatsapp: formatPhone(event.target.value) })); setError(""); setSubmissionError(""); }} />
             </div>
             {error && <span className="field-error" id="carousel-error" role="alert">{error}</span>}
             {actions(goBack)}
@@ -127,17 +195,18 @@ export function DiagnosticCarousel() {
     const config = remainingSteps[currentSlide - 3];
     slideContent = (
       <DiagnosticFlowLayout currentStep={config.currentStep} percentage={config.percentage}>
-        <form onSubmit={(event) => submitConfigured(event, config)} noValidate>
+        <form onSubmit={(event) => void submitConfigured(event, config)} noValidate aria-busy={isSubmitting}>
           <div className="question carousel-slide">
             <p>{config.eyebrow}</p><h1>{config.title}</h1>
             <label className="sr-only" htmlFor={config.field}>{config.title}</label>
             {config.fieldType === "select" ? (
-              <select ref={fieldRef as React.RefObject<HTMLSelectElement>} id={config.field} name={config.field} value={data[config.field]} aria-invalid={Boolean(error)} aria-describedby={error ? "carousel-error" : undefined} onChange={changeField(config.field)}>
+              <select ref={fieldRef as React.RefObject<HTMLSelectElement>} id={config.field} name={config.field} value={data[config.field]} disabled={isSubmitting} aria-invalid={Boolean(error)} aria-describedby={error ? "carousel-error" : undefined} onChange={changeField(config.field)}>
                 <option value="">{config.placeholder}</option>{config.options?.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
-            ) : <input ref={fieldRef as React.RefObject<HTMLInputElement>} id={config.field} name={config.field} type="text" autoComplete="off" placeholder={config.placeholder} value={data[config.field]} aria-invalid={Boolean(error)} aria-describedby={error ? "carousel-error" : undefined} onChange={changeField(config.field)} />}
+            ) : <input ref={fieldRef as React.RefObject<HTMLInputElement>} id={config.field} name={config.field} type="text" autoComplete="off" placeholder={config.placeholder} value={data[config.field]} disabled={isSubmitting} aria-invalid={Boolean(error)} aria-describedby={error ? "carousel-error" : undefined} onChange={changeField(config.field)} />}
             {error && <span className="field-error" id="carousel-error" role="alert">{error}</span>}
-            {actions(goBack)}
+            {submissionError && <span className="submission-error" role="alert">{submissionError}</span>}
+            {actions(goBack, isSubmitting)}
           </div>
         </form>
       </DiagnosticFlowLayout>
